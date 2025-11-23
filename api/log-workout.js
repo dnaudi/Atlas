@@ -1,12 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-)
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end()
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
 
   const { sessionId = 'TEST-' + Date.now(), exercises = [], effort } = req.body
 
@@ -19,9 +16,9 @@ export default async function handler(req, res) {
           exercise: ex.exercise,
           lift_code: ex.liftCode || '',
           set_number: s.set,
-          weight: s.weight,
-          reps: s.reps,
-          rir: s.rir ?? null,
+          weight: Number(s.weight),
+          reps: Number(s.reps),
+          rir: s.rir === undefined ? null : Number(s.rir)
         }))
       )
       await supabase.from('workout_log').insert(sets)
@@ -32,11 +29,11 @@ export default async function handler(req, res) {
         session_id: sessionId,
         date: '2025-11-22',
         duration: effort.duration || null,
-        active_calories: effort.activeCalories || 0,
-        total_calories: effort.totalCalories || 0,
-        avg_hr: effort.avgHR || 0,
-        peak_hr: effort.peakHR || 0,
-        location: effort.location || null,
+        active_calories: Number(effort.activeCalories) || 0,
+        total_calories: Number(effort.totalCalories) || 0,
+        avg_hr: Number(effort.avgHR) || 0,
+        peak_hr: Number(effort.peakHR) || 0,
+        location: effort.location || null
       })
     }
 
