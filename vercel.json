@@ -1,7 +1,9 @@
 {
+  "version": 2,
+  "public": false,
   "rewrites": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/:path*",
       "destination": "/index.js"
     }
   ]
