@@ -1,4 +1,4 @@
-// /api/index.js   ← FINAL VERSION (workout + effort + weight)
+// /api/index.js  ← FINAL WITH BODYWEIGHT PATCH
 import { google } from 'googleapis';
 
 const auth = new google.auth.GoogleAuth({
@@ -16,6 +16,7 @@ export default async function handler(req, res) {
   try {
     const values = [];
 
+    // === WEIGHT ONLY ===
     if (data.type === 'weight') {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
@@ -29,23 +30,58 @@ export default async function handler(req, res) {
         ]]},
       });
 
+    // === WORKOUT + EFFORT ===
     } else if (['workout', 'workout+effort', 'effort'].includes(data.type)) {
-      // === WORKOUT SETS ===
+
+      // Get latest bodyweight
+      const getLatestBodyweight = async () => {
+        try {
+          const res = await sheets.spreadsheets.values.get({
+            spreadsheetId: sheetId,
+            range: 'Weight Tracker!A:C',
+          });
+          const rows = res.data.values || [];
+          if (rows.length <= 1) return 235;
+          for (let i = rows.length - 1; i >= 1; i--) {
+            const w = parseFloat(rows[i][2]);
+            if (!isNaN(w)) return w;
+          }
+          return 235;
+        } catch (e) { return 235; }
+      };
+      const BW = await getLatestBodyweight();
+
+      const FULL_BW = ['Dips', 'Pull-up', 'Chin-up', 'Bodyweight Row'];
+      const PARTIAL_BW = { 'Hanging Knee Raise': 0.25, 'Hanging Leg Raise': 0.35 };
+
       if (data.exercises?.length > 0) {
         data.exercises.forEach(ex => {
           ex.sets.forEach((s, i) => {
+            let effectiveWeight = s.weight ?? 0;
+            let noteAddon = '';
+
+            if (FULL_BW.includes(ex.exercise)) {
+              effectiveWeight = s.weight > 0 ? BW + s.weight : BW;
+              noteAddon = s.weight > 0 ? `Bodyweight +${s.weight} lb` : 'Bodyweight movement';
+            } else if (PARTIAL_BW[ex.exercise]) {
+              effectiveWeight = Math.round(BW * PARTIAL_BW[ex.exercise] * 2) / 2;
+              noteAddon = `Bodyweight movement (${PARTIAL_BW[ex.exercise] * 100}% BW)`;
+            }
+
+            const finalNotes = s.notes ? `${s.notes} | ${noteAddon}` : noteAddon;
+
             values.push([
               data.date || new Date().toISOString().split('T')[0],
               data.sessionId,
               ex.exercise,
               ex.liftCode,
               s.set || i + 1,
-              s.weight ?? 0,
+              effectiveWeight,
               s.reps,
               s.rir ?? '',
-              s.notes || '',
-              `=F${values.length + 2}*G${values.length + 2}`,          // Volume
-              `=F${values.length + 2}*(1+G${values.length + 2}/30)`,   // e1RM
+              finalNotes,
+              `=F${values.length + 2}*G${values.length + 2}`,
+              `=F${values.length + 2}*(1+G${values.length + 2}/30)`,
               '', 'OK'
             ]);
           });
@@ -59,7 +95,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // === EFFORT DATA ===
+      // Effort
       if (data.type.includes('effort') && data.duration) {
         await sheets.spreadsheets.values.append({
           spreadsheetId: sheetId,
