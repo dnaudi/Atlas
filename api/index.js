@@ -1,51 +1,57 @@
-const { google } = require('googleapis');
-
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-  const data = req.body;
-
-  if (!data.type) return res.status(400).json({ error: 'Missing type' });
-
-  let auth;
-  try {
-    auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Auth credentials invalid: ' + err.message });
-  }
-
-  const sheets = google.sheets({ version: 'v4', auth });
-  const sheetId = process.env.SHEET_ID;
-
-  if (!sheetId) return res.status(500).json({ error: 'Missing SHEET_ID env var' });
-
-  try {
-    let range, values = [];
-
+    // SUPPORTS: weight, workout, effort, workout+effort
     if (data.type === 'weight') {
-      range = 'Weight Tracker!A:P';  // Adjust columns as needed
+      range = 'Weight Tracker!A:P';
       values = [[
         data.date || new Date().toISOString().split('T')[0],
         data.time || '',
         data.weightLb || '',
-        '', '', '', '', '', '', '', '', '', '', '', '', ''
+        ...Array(13).fill('')   // fill the rest of the columns
       ]];
+
+    } else if (['workout', 'workout+effort', 'effort'].includes(data.type)) {
+      // Log workout sets
+      if (data.exercises && data.exercises.length > 0) {
+        range = 'Log!A:M';
+        data.exercises.forEach(ex => {
+          ex.sets.forEach((s, i) => {
+            values.push([
+              data.date || new Date().toISOString().split('T')[0],
+              data.sessionId,
+              ex.exercise,
+              ex.liftCode,
+              s.set || i + 1,
+              s.weight,
+              s.reps,
+              s.rir ?? '',
+              s.notes || '',
+              `=F${values.length + 1}*G${values.length + 1}`,     // Volume
+              `=F${values.length + 1}*(1+G${values.length + 1}/30)`, // e1RM
+              '', 'OK'
+            ]);
+          });
+        });
+      }
+
+      // Log effort data if present
+      if (data.type.includes('effort') && data.duration) {
+        const effortRange = 'Effort!A:H';
+        const effortValues = [[
+          data.date || new Date().toISOString().split('T')[0],
+          data.sessionId,
+          data.duration,
+          data.activeCalories || '',
+          data.totalCalories || '',
+          data.avgHr || '',
+          data.peakHr || '',
+          data.location || 'Pitt Meadows Gym'
+        ]];
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: sheetId,
+          range: effortRange,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: effortValues },
+        });
+      }
     } else {
-      return res.status(400).json({ error: 'Only "weight" type supported for now' });
+      return res.status(400).json({ error: 'Invalid type' });
     }
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values },
-    });
-
-    res.status(200).json({ success: true });
-  } catch (err) {
-    console.error('Full error:', err);
-    res.status(500).json({ error: err.message });
-  }
-};
