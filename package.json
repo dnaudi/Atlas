@@ -1,7 +1,16 @@
 {
-  "name": "atlas-logger",
-  "version": "1.0.0",
+  "name": "atlas-live",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
   "dependencies": {
-    "googleapis": "^128.0.0"
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "@supabase/supabase-js": "^2.45.4"
   }
 }
