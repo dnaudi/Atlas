@@ -1,4 +1,4 @@
-// /api/index.js  ← FINAL VERSION (Nov 2025)
+// /api/index.js  ← FINAL – CLEAN SEPARATION (scale vs workout+effort)
 import { google } from 'googleapis';
 
 const auth = new google.auth.GoogleAuth({
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   const sheetId = process.env.SHEET_ID;
 
   try {
-    // === FULL SCALE / WEIGHT LOGGING (all 16 columns) ===
+    // 1. SCALE / WEIGHT ONLY → Weight Tracker only
     if (data.type === 'weight' || data.type === 'scale') {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
         valueInputOption: 'USER_ENTERED',
         resource: { values: [[
           data.date || new Date().toISOString().split('T')[0],
-          data.time || new Date().toTimeString().slice(0, 8),
+          data.time || new Date().toTimeString().slice(0,8),
           data.weightLb || '',
           data.bmi || '',
           data.bodyFatPct || '',
@@ -39,10 +39,10 @@ export default async function handler(req, res) {
           data.waistIn || ''
         ]]},
       });
-      return res.json({ success: true });
+      return res.json({ success: true, logged: 'weight' });
     }
 
-    // === WORKOUT + EFFORT LOGGING ===
+    // 2. WORKOUT + EFFORT ONLY → Log + Effort only (never touches Weight Tracker)
     if (!['workout', 'workout+effort', 'effort'].includes(data.type)) {
       return res.status(400).json({ error: 'Invalid type' });
     }
@@ -127,9 +127,9 @@ export default async function handler(req, res) {
       });
     }
 
-    res.json({ success: true });
+    return res.json({ success: true, logged: 'workout+effort' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
