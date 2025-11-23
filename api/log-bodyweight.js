@@ -1,39 +1,38 @@
-import { GoogleSpreadsheet } from 'google-spreadsheet';
+// pages/api/log-bodyweight.js
+import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
 
-  const data = req.body;
+  const supabase = createClient(
+    process.env.SUPABASE_URL || '',
+    process.env.SUPABASE_ANON_KEY || ''
+  )
 
-  const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
-  try {
-    const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    await doc.useServiceAccountAuth(creds);
-    await doc.loadInfo();
+  const data = req.body || {}
 
-    const sheet = doc.sheetsByTitle['Weight Tracker'];
-    await sheet.addRow({
-      Date: data.date || new Date().toISOString().split('T')[0],
-      Time: data.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      'Weight(lb)': data.weight,
-      BMI: data.bmi,
-      'Body Fat(%)': data.bodyFat,
-      'Skeletal Muscle(%)': data.skeletalMuscle,
-      'Fat-Free Mass(lb)': data.fatFreeMass,
-      'Subcutaneous Fat(%)': data.subcutaneousFat,
-      'Visceral Fat': data.visceralFat,
-      'Body Water(%)': data.bodyWater,
-      'Muscle Mass(lb)': data.muscleMass,
-      'Bone Mass(lb)': data.boneMass,
-      'Protein (%)': data.protein,
-      'BMR(kcal)': data.bmr,
-      'Metabolic Age': data.metabolicAge,
-      'Waist (in)': data.waist || '',
-    });
+  const { error } = await supabase.from('bodyweight').insert({
+    date: '2025-11-22',
+    time: new Date().toLocaleTimeString(),
+    weight: data.weight || 232.6,
+    bmi: data.bmi || 33.7,
+    body_fat: data.bodyFat || 31.9,
+    skeletal_muscle: data.skeletalMuscle || 44.0,
+    fat_free_mass: data.fatFreeMass || 158.2,
+    subcutaneous_fat: data.subcutaneousFat || 27.3,
+    visceral_fat: data.visceralFat || 16,
+    body_water: data.bodyWater || 49.1,
+    muscle_mass: data.muscleMass || 150.4,
+    bone_mass: data.boneMass || 8.0,
+    protein: data.protein || 15.5,
+    bmr: data.bmr || 1919,
+    metabolic_age: data.metabolicAge || 42,
+  })
 
-    res.status(200).json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+  if (error) {
+    console.error('Supabase insert error:', error)
+    return res.status(500).json({ error: error.message })
   }
+
+  res.status(200).json({ success: true })
 }
