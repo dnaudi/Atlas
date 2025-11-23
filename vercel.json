@@ -1,8 +1,9 @@
 {
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/log",
-      "destination": "/index.js"
+      "src": "/api/log",
+      "dest": "/index.js",
+      "methods": ["POST"]
     }
   ]
 }
